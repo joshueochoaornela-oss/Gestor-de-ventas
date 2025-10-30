@@ -1,292 +1,215 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Ventas y Finanzas</title>
-    <!-- Carga de Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f7f7f9;
-        }
-        .tab-button.active {
-            border-bottom-width: 3px;
-            border-color: #3b82f6; /* blue-500 */
-            color: #3b82f6;
-            font-weight: 600;
-        }
-        .card {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
-        }
-        .modal {
-            transition: opacity 0.3s ease-in-out;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gestor de Ventas</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    input, button { margin: 4px 0; padding: 6px; }
+    #ventas-list li { margin: 8px 0; }
+  </style>
 </head>
 <body>
-<div id="app" class="min-h-screen bg-gray-50 flex flex-col">
-    <!-- Header -->
-    <header class="bg-white shadow-md sticky top-0 z-10">
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
-            <h1 class="text-xl font-bold text-gray-800">Control de Negocio</h1>
-            <div class="text-xs text-gray-500 rounded-full bg-gray-100 px-3 py-1 truncate" id="userIdDisplay">Cargando...</div>
-        </div>
-        <!-- Tabs -->
-        <nav class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-4 border-b border-gray-200">
-            <button class="tab-button py-3 px-2 text-sm text-gray-600 hover:text-blue-500 active" data-tab="vendedores">Vendedores</button>
-            <button class="tab-button py-3 px-2 text-sm text-gray-600 hover:text-blue-500" data-tab="pos">Puntos de Venta</button>
-            <button class="tab-button py-3 px-2 text-sm text-gray-600 hover:text-blue-500" data-tab="gastos">Gastos</button>
-            <button class="tab-button py-3 px-2 text-sm text-gray-600 hover:text-blue-500" data-tab="resumen">Resumen</button>
-            <button class="tab-button py-3 px-2 text-sm text-gray-600 hover:text-blue-500" data-tab="config">Configuración</button>
-        </nav>
-    </header>
+  <h1>Gestor de Ventas (local)</h1>
 
-    <!-- Main Content Area -->
-    <main class="flex-grow max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
-        <div id="content-container">
-            <!-- Content will be injected here -->
-        </div>
-    </main>
+  <section>
+    <h2>Registrar venta</h2>
+    <form id="venta-form">
+      <div>
+        <input id="cliente" placeholder="Cliente" required />
+      </div>
+      <div>
+        <input id="producto" placeholder="Producto" required />
+      </div>
+      <div>
+        <input id="cantidad" type="number" placeholder="Cantidad" value="1" min="1" />
+      </div>
+      <div>
+        <input id="total" type="number" step="0.01" placeholder="Total" value="0" />
+      </div>
+      <div>
+        <button type="submit">Agregar</button>
+        <button type="button" id="export-btn">Exportar JSON</button>
+        <button type="button" id="import-btn">Importar JSON</button>
+        <input id="import-file" type="file" accept="application/json" style="display:none" />
+      </div>
+    </form>
+  </section>
 
-    <!-- Custom Modal for Alerts/Confirmation -->
-    <div id="custom-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 opacity-0 pointer-events-none">
-        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full transform scale-95 transition-all">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4" id="modal-title">Atención</h3>
-            <p class="text-sm text-gray-600 mb-6" id="modal-message"></p>
-            <div class="flex justify-end space-x-3">
-                <button id="modal-cancel" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-300 transition">Cancelar</button>
-                <button id="modal-confirm" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition">Confirmar</button>
-            </div>
-        </div>
+  <section>
+    <h2>Ventas</h2>
+    <ul id="ventas-list"></ul>
+    <div>
+      <button id="clear-all">Eliminar todo</button>
     </div>
+  </section>
 
-    <!-- Loading Indicator -->
-    <div id="loading-overlay" class="fixed inset-0 bg-gray-100 bg-opacity-70 flex items-center justify-center z-50 transition-opacity duration-300">
-        <div class="flex flex-col items-center">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-            <p class="mt-4 text-gray-600">Cargando datos...</p>
-        </div>
-    </div>
-</div>
-    
-<script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
+  <script>
+  /* Persistencia en localStorage para Gestor-de-ventas */
+  const STORAGE_KEY = 'gestor_ventas_v1';
 
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyD5X9ycLv0somKxawegGV6x1qF3tjMy5rM",
-    authDomain: "gestor-de-ventas-93f79.firebaseapp.com",
-    projectId: "gestor-de-ventas-93f79",
-    storageBucket: "gestor-de-ventas-93f79.firebasestorage.app",
-    messagingSenderId: "49710503461",
-    appId: "1:49710503461:web:04721d62eeffe1ff41d1cc",
-    measurementId: "G-23FZ7N6LY3"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, onSnapshot, collection, query, updateDoc, deleteDoc, addDoc, Timestamp, runTransaction, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    // --- Variables Globales ---
-    const TABS = { VENDEDORES: 'vendedores', POS: 'pos', GASTOS: 'gastos', RESUMEN: 'resumen', CONFIG: 'config' };
-    let currentTab = TABS.VENDEDORES;
-    let vendedores = [];
-    let puntosDeVenta = [];
-    let movimientosPOS = [];
-    let gastos = [];
-    let precioUnidad = 50;
-    let userId = null;
-    let db, auth;
-    let isAuthReady = false;
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-    // --- LocalStorage Helpers ---
-    function saveVendedoresToLocal() {
-        localStorage.setItem('vendedores', JSON.stringify(vendedores));
+  // Cargar datos desde localStorage (devuelve array)
+  function loadVentas() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error('Error al leer localStorage:', e);
+      return [];
     }
-    function loadVendedoresFromLocal() {
-        const data = localStorage.getItem('vendedores');
-        vendedores = data ? JSON.parse(data) : [];
+  }
+
+  // Guardar array de ventas en localStorage
+  function saveVentas(ventas) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(ventas));
+    } catch (e) {
+      console.error('Error al guardar en localStorage:', e);
     }
-    function savePuntosDeVentaToLocal() {
-        localStorage.setItem('puntosDeVenta', JSON.stringify(puntosDeVenta));
-    }
-    function loadPuntosDeVentaFromLocal() {
-        const data = localStorage.getItem('puntosDeVenta');
-        puntosDeVenta = data ? JSON.parse(data) : [];
+  }
+
+  // Agregar una venta nueva
+  function addVenta(venta) {
+    const ventas = loadVentas();
+    ventas.push(venta);
+    saveVentas(ventas);
+    renderVentas();
+  }
+
+  // Eliminar una venta por id
+  function removeVenta(id) {
+    let ventas = loadVentas();
+    ventas = ventas.filter(v => v.id !== id);
+    saveVentas(ventas);
+    renderVentas();
+  }
+
+  // Eliminar todo
+  function clearAll() {
+    if (!confirm('Eliminar todas las ventas?')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    renderVentas();
+  }
+
+  // Renderizar la lista en el DOM
+  function renderVentas() {
+    const ventas = loadVentas();
+    const listEl = document.getElementById('ventas-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    if (ventas.length === 0) {
+      listEl.innerHTML = '<li>No hay ventas registradas.</li>';
+      return;
     }
 
-    // --- DOM Elements ---
-    const contentContainer = document.getElementById('content-container');
-    const tabButtons = document.querySelectorAll('.tab-button');
-    const loadingOverlay = document.getElementById('loading-overlay');
-    const userIdDisplay = document.getElementById('userIdDisplay');
+    ventas.forEach(v => {
+      const li = document.createElement('li');
+      li.textContent = `${v.fecha} — ${v.cliente}: ${v.producto} x${v.cantidad} => $${v.total}`;
+      // Botón eliminar
+      const btn = document.createElement('button');
+      btn.textContent = 'Eliminar';
+      btn.style.marginLeft = '10px';
+      btn.addEventListener('click', () => {
+        if (confirm('Eliminar esta venta?')) removeVenta(v.id);
+      });
+      li.appendChild(btn);
+      listEl.appendChild(li);
+    });
+  }
 
-    // --- Firebase Initialization and Auth ---
-    if (firebaseConfig) {
-        setLogLevel('debug');
-        const app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
+  // Exportar JSON
+  function exportJSON() {
+    const ventas = loadVentas();
+    const dataStr = JSON.stringify(ventas, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'gestor_ventas_export.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 
-        const setupAuth = async () => {
-            try {
-                await setPersistence(auth, browserSessionPersistence);
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Firebase Auth Error:", error);
-            }
-        };
+  // Importar JSON (archivo)
+  function importJSONFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const imported = JSON.parse(reader.result);
+        if (!Array.isArray(imported)) throw new Error('Formato inválido: se esperaba un array');
+        // Opcional: validar elementos mínimamente
+        const ventas = loadVentas();
+        const merged = ventas.concat(imported.map(item => ({
+          id: item.id || Date.now().toString() + Math.random().toString(36).slice(2),
+          cliente: item.cliente || '',
+          producto: item.producto || '',
+          cantidad: item.cantidad || 1,
+          total: item.total || 0,
+          fecha: item.fecha || new Date().toLocaleString()
+        })));
+        saveVentas(merged);
+        renderVentas();
+        alert('Importación completada.');
+      } catch (e) {
+        alert('Error al importar JSON: ' + e.message);
+      }
+    };
+    reader.onerror = () => alert('No se pudo leer el archivo');
+    reader.readAsText(file);
+  }
 
-        onAuthStateChanged(auth, (user) => {
-            userId = user ? user.uid : 'Anonimo-' + crypto.randomUUID();
-            userIdDisplay.textContent = `ID Usuario: ${userId.substring(0, 10)}...`;
-            isAuthReady = true;
-            hideLoading();
-            renderTab(currentTab);
-            setupFirestoreListeners();
-        });
+  // Hook para formulario
+  function setupForm() {
+    const form = document.getElementById('venta-form');
+    if (!form) return;
 
-        setupAuth();
-    } else {
-        // Modo Simulación: Cargar vendedores y puntos de venta de localStorage al inicio
-        userIdDisplay.textContent = 'Modo Simulación';
-        isAuthReady = true;
-        hideLoading();
-        loadVendedoresFromLocal();
-        loadPuntosDeVentaFromLocal();
-        renderTab(currentTab);
-    }
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const cliente = document.getElementById('cliente').value.trim();
+      const producto = document.getElementById('producto').value.trim();
+      const cantidad = parseInt(document.getElementById('cantidad').value, 10) || 1;
+      const total = parseFloat(document.getElementById('total').value) || 0;
+      const fecha = new Date().toLocaleString();
 
-    // --- Utility Functions ---
-    function showLoading() { loadingOverlay.classList.remove('opacity-0', 'pointer-events-none'); }
-    function hideLoading() { loadingOverlay.classList.add('opacity-0', 'pointer-events-none'); }
+      if (!cliente || !producto) {
+        alert('Completa los campos requeridos.');
+        return;
+      }
 
-    // --- TAB RENDERING (solo muestra pestañas, no cambia lógica) ---
-    function renderTab(tabName) {
-        currentTab = tabName;
-        tabButtons.forEach(button => {
-            button.classList.remove('active');
-            if (button.dataset.tab === tabName) {
-                button.classList.add('active');
-            }
-        });
-        switch (tabName) {
-            case TABS.VENDEDORES:
-                renderVendedores();
-                break;
-            case TABS.POS:
-                renderPuntosDeVenta();
-                break;
-            case TABS.GASTOS:
-                renderGastos();
-                break;
-            case TABS.RESUMEN:
-                renderResumen();
-                break;
-            case TABS.CONFIG:
-                renderConfiguracion();
-                break;
-        }
-    }
+      const venta = {
+        id: Date.now().toString() + Math.random().toString(36).slice(2),
+        cliente, producto, cantidad, total, fecha
+      };
 
-    // --- ADAPTACIONES PARA LOCALSTORAGE EN MODO SIMULACIÓN ---
+      addVenta(venta);
+      form.reset();
+      document.getElementById('cliente').focus();
+    });
 
-    // Agrega vendedor
-    async function addVendedor(name) {
-        if (!db && !firebaseConfig) { // Modo localStorage
-            const newVendedor = {
-                id: crypto.randomUUID(),
-                nombre: name,
-                entregado_qty: 0,
-                vendido_qty: 0,
-                pagado: 0
-            };
-            vendedores.push(newVendedor);
-            saveVendedoresToLocal();
-            renderVendedores();
-            return;
-        }
-        // Tu código original Firebase aquí...
-        // ...
-    }
+    document.getElementById('export-btn').addEventListener('click', exportJSON);
 
-    // Elimina vendedor
-    async function deleteVendedor(id) {
-        if (!db && !firebaseConfig) {
-            vendedores = vendedores.filter(v => v.id !== id);
-            saveVendedoresToLocal();
-            renderVendedores();
-            return;
-        }
-        // Tu código original Firebase aquí...
-        // ...
-    }
+    const importBtn = document.getElementById('import-btn');
+    const importFile = document.getElementById('import-file');
+    importBtn.addEventListener('click', () => importFile.click());
+    importFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) importJSONFile(file);
+      importFile.value = '';
+    });
 
-    // Agrega punto de venta
-    async function addPuntoDeVenta(name) {
-        if (!db && !firebaseConfig) {
-            const newPunto = {
-                id: crypto.randomUUID(),
-                nombre: name,
-                creado_en: new Date().toISOString()
-            };
-            puntosDeVenta.push(newPunto);
-            savePuntosDeVentaToLocal();
-            renderPuntosDeVenta();
-            return;
-        }
-        // Tu código original Firebase aquí...
-        // ...
-    }
+    document.getElementById('clear-all').addEventListener('click', clearAll);
+  }
 
-    // Elimina punto de venta
-    async function deletePuntoDeVenta(id) {
-        if (!db && !firebaseConfig) {
-            puntosDeVenta = puntosDeVenta.filter(p => p.id !== id);
-            savePuntosDeVentaToLocal();
-            renderPuntosDeVenta();
-            return;
-        }
-        // Tu código original Firebase aquí...
-        // ...
-    }
-
-    // Cuando muestres la pestaña de vendedores, carga del localStorage si está en modo simulación
-    function renderVendedores() {
-        if (!firebaseConfig) loadVendedoresFromLocal();
-        // ... tu código original de renderizado ...
-        // Aquí pega el resto de tu función renderVendedores original
-    }
-
-    // Cuando muestres la pestaña de puntos de venta, carga del localStorage si está en modo simulación
-    function renderPuntosDeVenta() {
-        if (!firebaseConfig) loadPuntosDeVentaFromLocal();
-        // ... tu código original de renderizado ...
-        // Aquí pega el resto de tu función renderPuntosDeVenta original
-    }
-
-    // El resto de tu código JS sigue igual...
-    // (aquí va el resto de tu lógica para gastos, resumen, configuración, eventos, etc.)
-</script>
+  // Inicialización
+  window.addEventListener('DOMContentLoaded', () => {
+    setupForm();
+    renderVentas();
+  });
+  </script>
 </body>
 </html>
